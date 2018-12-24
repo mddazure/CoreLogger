@@ -120,16 +120,16 @@ namespace CoreLoggerFunctionApp3
 
                 client = new DocumentClient(new Uri(endpointUrlKV), primaryKeyKV);
 
-                while(!client.CreateDatabaseIfNotExistsAsync(new Database { Id = databaseNameKV }).IsCompleted) { }
-                while(!client.CreateDocumentCollectionIfNotExistsAsync(UriFactory.CreateDatabaseUri(databaseNameKV), new DocumentCollection { Id = collectionName }).IsCompleted) { }
+                client.CreateDatabaseIfNotExistsAsync(new Database { Id = databaseNameKV }).GetAwaiter().GetResult();
+                client.CreateDocumentCollectionIfNotExistsAsync(UriFactory.CreateDatabaseUri(databaseNameKV), new DocumentCollection { Id = collectionName }).GetAwaiter().GetResult();
 
                 using (MemoryStream ms = new MemoryStream(Encoding.UTF8.GetBytes(resp)))
                 {
                     var doc = JsonSerializable.LoadFrom<Document>(ms);
                     doc.Id = DateTime.Now.ToLongTimeString() + " " + DateTime.Now.ToLongDateString();
 
-                    while(!client.CreateDocumentAsync(UriFactory.CreateDocumentCollectionUri(databaseNameKV, collectionName), doc).IsCompleted) { }
-                    
+                    client.CreateDocumentAsync(UriFactory.CreateDocumentCollectionUri(databaseNameKV, collectionName), doc).GetAwaiter().GetResult();
+
                 }
             }
             catch (DocumentClientException de)
