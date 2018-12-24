@@ -22,7 +22,7 @@ namespace CoreLoggerFunctionApp3
     {
 
          [FunctionName("Function3")]
-        public static void Run([TimerTrigger("0 0/1 * * * *")]TimerInfo myTimer, TraceWriter log) //[TimerTrigger("0 0 12 * * 1-5")]
+        public static void Run([TimerTrigger("0 0 12 * * 1-5")]TimerInfo myTimer, TraceWriter log) // Trigger 12.00 noon on Monday - Friday 0 0 12 * * 1-5
         {
             log.Info($"C# Timer trigger function executed at: {DateTime.Now}");
 
@@ -36,7 +36,12 @@ namespace CoreLoggerFunctionApp3
             var accessToken = azureServiceTokenProvider.GetAccessTokenAsync("https://management.core.windows.net/").Result;
             TokenCredentials tokcred = new TokenCredentials(accessToken);
 
+            //Internal billing subscription Marc
             string[] subscrArray = { "0245be41-c89b-4b46-a3cc-a705c90cd1e8" };
+
+            //AHIT Gen Acc/Prod, Gen Dev/Test, Gen Infra
+            //string[] subscrArray = { "9151b87a-be67-4096-aabf-623e262a5b9c","24d982bc-43e1-4e58-a537-abb3fc74d1c7","ebe731f6-78dd-478b-ae32-d149303f3222"} };
+
             var canceltoken = new CancellationToken();
 
             foreach (var subscr in subscrArray)
@@ -68,7 +73,7 @@ namespace CoreLoggerFunctionApp3
                     Console.WriteLine($"name.localizedValue, {val.nAme.localizedValue}\n\n");*/
 
                     //actual resource usage > 80% of limit
-                    if (val.currentValue == 4)//> 0.8 * val.limit)
+                    if (val.currentValue > 0.8 * val.limit)
                     {
                         // send alert email via Logic App through webhook trigger
 
@@ -134,8 +139,8 @@ namespace CoreLoggerFunctionApp3
             }
             catch (DocumentClientException de)
             {
-                Console.WriteLine("DocumentClientException: {0}", de.Message);
-                Console.ReadKey();
+                /* Console.WriteLine("DocumentClientException: {0}", de.Message);
+                Console.ReadKey();*/
             }
         }
     }
