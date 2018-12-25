@@ -42,62 +42,67 @@ namespace CoreLoggerFunctionApp3
             //AHIT Gen Acc/Prod, Gen Dev/Test, Gen Infra
             //string[] subscrArray = { "9151b87a-be67-4096-aabf-623e262a5b9c","24d982bc-43e1-4e58-a537-abb3fc74d1c7","ebe731f6-78dd-478b-ae32-d149303f3222"} };
 
+            string[] locationArray = { "west-europe", "north-europe" };
+
             var canceltoken = new CancellationToken();
 
             foreach (var subscr in subscrArray)
             {
-                Usages usages = new Usages();
-
-                //compose usage query to Microsoft.Compute resource provider
-                var httpRequestMessage = new HttpRequestMessage();
-                httpRequestMessage.Method = new HttpMethod("GET");
-                httpRequestMessage.RequestUri = new Uri($"https://management.azure.com/subscriptions/{subscr}/providers/Microsoft.Compute/locations/west-europe/usages?api-version=2015-06-15");
-                httpRequestMessage.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
-                httpRequestMessage.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-
-                //send query, convert response content to string
-                response = httpClient.SendAsync(httpRequestMessage, canceltoken).Result;
-                string respstring = response.Content.AsString();
-
-                //deserialize response json to object
-                usages = JsonConvert.DeserializeObject<Usages>(respstring);
-
-                //step through each value element in usages object
-                foreach (value val in usages.vAlue)
+                foreach (var location in locationArray)
                 {
-                    /*write to console, does not work in Function
-                    Console.WriteLine($"limit, {val.limit}");
-                    Console.WriteLine($"unit, {val.unit}");
-                    Console.WriteLine($"currentValue, {val.currentValue}");
-                    Console.WriteLine($"name.value, {val.nAme.value}");
-                    Console.WriteLine($"name.localizedValue, {val.nAme.localizedValue}\n\n");*/
+                    Usages usages = new Usages();
 
-                    //actual resource usage > 80% of limit
-                    if (val.currentValue > 0.8 * val.limit)
+                    //compose usage query to Microsoft.Compute resource provider
+                    var httpRequestMessage = new HttpRequestMessage();
+                    httpRequestMessage.Method = new HttpMethod("GET");
+                    httpRequestMessage.RequestUri = new Uri($"https://management.azure.com/subscriptions/{subscr}/providers/Microsoft.Compute/locations/{location}/usages?api-version=2015-06-15");
+                    httpRequestMessage.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+                    httpRequestMessage.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+
+                    //send query, convert response content to string
+                    response = httpClient.SendAsync(httpRequestMessage, canceltoken).Result;
+                    string respstring = response.Content.AsString();
+
+                    //deserialize response json to object
+                    usages = JsonConvert.DeserializeObject<Usages>(respstring);
+
+                    //step through each value element in usages object
+                    foreach (value val in usages.vAlue)
                     {
-                        // send alert email via Logic App through webhook trigger
+                        /*write to console, does not work in Function
+                        Console.WriteLine($"limit, {val.limit}");
+                        Console.WriteLine($"unit, {val.unit}");
+                        Console.WriteLine($"currentValue, {val.currentValue}");
+                        Console.WriteLine($"name.value, {val.nAme.value}");
+                        Console.WriteLine($"name.localizedValue, {val.nAme.localizedValue}\n\n");*/
 
-                        //use managed service identity to obtain key vault access and retrieve Logi App URL
-                        var keyVaultClient = new KeyVaultClient(new KeyVaultClient.AuthenticationCallback(azureServiceTokenProvider.KeyVaultTokenCallback));
-                        string logAppUri = keyVaultClient.GetSecretAsync("https://Demo-KV001.vault.azure.net/secrets/CorelogLogicAppURL").Result.Value;
+                        //actual resource usage > 80% of limit
+                        if (val.currentValue > 0.8 * val.limit)
+                        {
+                            // send alert email via Logic App through webhook trigger
 
-                        //get display name of subscription
-                        SubscriptionClient subclient = new SubscriptionClient(tokcred);
-                        var subscrDisplayName = subclient.Subscriptions.Get(subscriptionId: subscr).DisplayName;
+                            //use managed service identity to obtain key vault access and retrieve Logi App URL
+                            var keyVaultClient = new KeyVaultClient(new KeyVaultClient.AuthenticationCallback(azureServiceTokenProvider.KeyVaultTokenCallback));
+                            string logAppUri = keyVaultClient.GetSecretAsync("https://Demo-KV001.vault.azure.net/secrets/CorelogLogicAppURL").Result.Value;
 
-                        //compose message body
-                        string body = $"SubscriptionID: { subscr}\nSubscription Name:{subscrDisplayName}\nType: {val.nAme.localizedValue}\nLimit: {val.limit}\nCurrent value: {val.currentValue}\n";
-                        var httpRequestMessage2 = new HttpRequestMessage();
-                        httpRequestMessage2.Method = new HttpMethod("POST");
-                        httpRequestMessage2.RequestUri = new Uri(logAppUri);
-                        httpRequestMessage2.Content = new StringContent(body);
+                            //get display name of subscription
+                            SubscriptionClient subclient = new SubscriptionClient(tokcred);
+                            var subscrDisplayName = subclient.Subscriptions.Get(subscriptionId: subscr).DisplayName;
 
-                        // send webhook
-                        response = httpClient.SendAsync(httpRequestMessage2, canceltoken).Result;
+                            //compose message body
+                            string body = $"SubscriptionID: { subscr}\nSubscription Name: {subscrDisplayName}\nRegion: {location}\nType: {val.nAme.localizedValue}\nLimit: {val.limit}\nCurrent value: {val.currentValue}\n";
+                            var httpRequestMessage2 = new HttpRequestMessage();
+                            httpRequestMessage2.Method = new HttpMethod("POST");
+                            httpRequestMessage2.RequestUri = new Uri(logAppUri);
+                            httpRequestMessage2.Content = new StringContent(body);
 
-                        //write usage data for type at risk data to CosmosDB
-                        var usagedoc = JsonConvert.SerializeObject(val);
-                        docDB.DocumentDB(subscrDisplayName, usagedoc);
+                            // send webhook
+                            response = httpClient.SendAsync(httpRequestMessage2, canceltoken).Result;
+
+                            //write usage data for type at risk data to CosmosDB
+                            var usagedoc = JsonConvert.SerializeObject(val);
+                            docDB.DocumentDB($"{subscrDisplayName} : {location}", usagedoc);
+                        }
                     }
                 }
             }
